@@ -1,0 +1,119 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAXN 50005
+#define HASH_SIZE 200003
+
+typedef struct HashNode {
+    long long key;
+    int count;
+    struct HashNode* next;
+} HashNode;
+
+HashNode* hash_all[HASH_SIZE];
+HashNode* hash_anc[HASH_SIZE];
+long long node_val[MAXN], s[MAXN], total_sum, min_x;
+int head[MAXN], to[MAXN * 2], nxt[MAXN * 2], ec;
+
+// --- Hash Table Logic ---
+void hash_insert(HashNode** table, long long key) {
+    int idx = (key % HASH_SIZE + HASH_SIZE) % HASH_SIZE;
+    for (HashNode* c = table[idx]; c; c = c->next) {
+        if (c->key == key) { c->count++; return; }
+    }
+    HashNode* n = (HashNode*)malloc(sizeof(HashNode));
+    n->key = key; n->count = 1; n->next = table[idx]; table[idx] = n;
+}
+
+int hash_count(HashNode** table, long long key) {
+    int idx = (key % HASH_SIZE + HASH_SIZE) % HASH_SIZE;
+    for (HashNode* c = table[idx]; c; c = c->next) {
+        if (c->key == key) return c->count;
+    }
+    return 0;
+}
+
+void hash_remove(HashNode** table, long long key) {
+    int idx = (key % HASH_SIZE + HASH_SIZE) % HASH_SIZE;
+    for (HashNode* c = table[idx]; c; c = c->next) {
+        if (c->key == key) { c->count--; return; }
+    }
+}
+
+void hash_clear(HashNode** table) {
+    for (int i = 0; i < HASH_SIZE; i++) {
+        HashNode* c = table[i];
+        while (c) { HashNode* t = c; c = c->next; free(t); }
+        table[i] = NULL;
+    }
+}
+
+// --- Tree Logic ---
+void add_edge(int u, int v) {
+    to[++ec] = v; nxt[ec] = head[u]; head[u] = ec;
+}
+
+long long get_sums(int u, int p) {
+    s[u] = node_val[u];
+    for (int i = head[u]; i; i = nxt[i]) {
+        if (to[i] != p) s[u] += get_sums(to[i], u);
+    }
+    hash_insert(hash_all, s[u]);
+    return s[u];
+}
+
+void solve(int u, int p) {
+    long long su = s[u];
+    hash_remove(hash_all, su);
+
+    // Scenario 1: su is one of the three equal components (S)
+    long long S = su;
+    if (3 * S >= total_sum) {
+        if (hash_count(hash_all, S) || hash_count(hash_anc, 2 * S) || 
+            hash_count(hash_all, total_sum - 2 * S) || hash_count(hash_anc, total_sum - S)) {
+            long long x = 3 * S - total_sum;
+            if (min_x == -1 || x < min_x) min_x = x;
+        }
+    }
+
+    // Scenario 2: su is the sum of TWO components (one S + added node X)
+    if ((total_sum - su) % 2 == 0) {
+        long long S2 = (total_sum - su) / 2;
+        if (S2 >= su) { // Ensuring X is non-negative
+            if (hash_count(hash_all, S2) || hash_count(hash_anc, S2 + su)) {
+                long long x = 3 * S2 - total_sum;
+                if (min_x == -1 || x < min_x) min_x = x;
+            }
+        }
+    }
+
+    hash_insert(hash_anc, su);
+    for (int i = head[u]; i; i = nxt[i]) {
+        if (to[i] != p) solve(to[i], u);
+    }
+    hash_remove(hash_anc, su);
+    hash_insert(hash_all, su);
+}
+
+int main() {
+    int q, n;
+    if (scanf("%d", &q) != 1) return 0;
+    while (q--) {
+        if (scanf("%d", &n) != 1) break;
+        ec = 0; min_x = -1;
+        memset(head, 0, sizeof(head));
+        hash_clear(hash_all); hash_clear(hash_anc);
+        
+        for (int i = 1; i <= n; i++) scanf("%lld", &node_val[i]);
+        for (int i = 0; i < n - 1; i++) {
+            int u, v; scanf("%d %d", &u, &v);
+            add_edge(u, v); add_edge(v, u);
+        }
+        
+        total_sum = get_sums(1, 0);
+        solve(1, 0);
+        printf("%lld\n", min_x);
+    }
+    return 0;
+}
